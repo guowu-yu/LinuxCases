@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Linux 案例集 · Ubuntu Server 按周学习路线图</title>
+    <meta name="description" content="Linux 案例集 — Ubuntu Server 技能提升按周学习路线图与专题实践手册。" />
+    <meta name="author" content="通信小鱼" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600&family=Noto+Serif+SC:wght@500;600;700&family=JetBrains+Mono:wght@500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="assets/css/main.css?v=20261012" />
+  </head>
+  <body>
+    <div class="noise" aria-hidden="true"></div>
+    <header class="site-header">
+      <a class="brand" href="index.html">
+        <span class="brand-mark">$_</span>
+        <span class="brand-text">
+          <strong>Linux 案例集</strong>
+          <em>Linux Cases</em>
+        </span>
+      </a>
+      <nav class="nav">
+        <a href="#topics">专题</a>
+        <a href="#about">关于</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="hero-media" role="img" aria-label="服务器机房与终端"></div>
+        <div class="hero-veil"></div>
+        <div class="hero-content">
+          <p class="hero-kicker">Ubuntu Server · 运维 · 实战</p>
+          <h1 class="hero-brand">Linux 案例集</h1>
+          <p class="hero-lead">14 周 Ubuntu Server 技能提升路线图：每周一个专题，从安装入门到自动化运维与故障排查，把命令行练成肌肉记忆。</p>
+          <div class="hero-cta">
+            <a class="btn btn-primary" href="#topics">进入专题库</a>
+            <span class="hero-author">作者 · 通信小鱼</span>
+          </div>
+          <form class="search-panel" id="search-form" role="search" autocomplete="off">
+            <label class="sr-only" for="search-input">搜索知识点</label>
+            <input
+              id="search-input"
+              type="search"
+              name="q"
+              placeholder="搜索专题、标签或关键词，例如：systemd、防火墙、磁盘…"
+              enterkeyhint="search"
+            />
+            <button type="submit" class="btn btn-search">搜索</button>
+          </form>
+          <div id="search-results" class="search-results" hidden></div>
+        </div>
+      </section>
+
+      <section class="section topics-section" id="topics">
+        <div class="section-head">
+          <h2>专题星图</h2>
+          <p>当前共 <strong>{{TOPIC_COUNT}}</strong> 篇 · 按周持续更新</p>
+        </div>
+        <div class="filter-panel">
+          <div class="filter-bar" id="tag-filters"></div>
+          <button
+            type="button"
+            class="filter-expand"
+            id="tag-filters-toggle"
+            hidden
+            aria-expanded="false"
+          >
+            展开全部
+          </button>
+        </div>
+        <div class="topic-grid" id="topic-grid">
+          {{TOPIC_CARDS}}
+        </div>
+      </section>
+
+      <section class="section about-section" id="about">
+        <div class="about-panel">
+          <div class="about-copy">
+            <h2>关于 Linux 案例集</h2>
+            <p>
+              这里是「通信小鱼」的 Ubuntu Server 学习园地：聚焦命令行、系统管理、网络、安全与自动化运维。
+              每周一个专题，配实战命令与练习任务，沉淀在 GitHub，便于长期回顾与检索。
+            </p>
+          </div>
+          <ul class="about-stats">
+            <li><span>领域</span><strong>Ubuntu Server</strong></li>
+            <li><span>作者</span><strong>通信小鱼</strong></li>
+            <li><span>形态</span><strong>按周专题</strong></li>
+          </ul>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <p>© <span id="year"></span> Linux 案例集 · 通信小鱼</p>
+      <p class="muted">Ubuntu Server 技能提升 · 托管于 GitHub Pages</p>
+    </footer>
+
+    {{ROADMAP_FLOAT}}
+
+    <script src="assets/js/main.js?v=20261012" type="module"></script>
+  </body>
+</html>

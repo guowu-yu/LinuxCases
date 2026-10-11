@@ -1,0 +1,9 @@
+{
+  "name": "linuxcases",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Linux 案例集 — Ubuntu Server 技能提升按周学习路线图",
+  "scripts": {
+    "build": "python build.py"
+  }
+}

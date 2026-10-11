@@ -1,0 +1,373 @@
+#!/usr/bin/env python3
+"""Build Linux 案例集 static site from Markdown topics.
+
+结构参照 knowledge-garden：Markdown 专题 + Python 构建 + GitHub Pages 发布。
+专题为 Ubuntu Server 技能提升按周学习路线图。
+"""
+
+from __future__ import annotations
+
+import json
+import re
+import shutil
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent
+CONTENT = ROOT / "content" / "topics"
+SRC = ROOT / "src"
+DIST = ROOT / "dist"
+
+try:
+    import markdown as md_lib
+except ImportError:
+    md_lib = None
+
+
+def ensure_markdown():
+    global md_lib
+    if md_lib is not None:
+        return
+    import subprocess
+    import sys
+
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "markdown", "-q"])
+    import markdown as md_lib  # noqa: F401
+
+
+def escape_html(s: str) -> str:
+    return (
+        str(s)
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+    )
+
+
+def parse_front_matter(raw: str) -> tuple[dict, str]:
+    if not raw.startswith("---"):
+        return {}, raw
+    end = raw.find("\n---", 3)
+    if end == -1:
+        return {}, raw
+    yaml = raw[3:end].strip()
+    body = raw[end + 4 :].lstrip()
+    meta: dict = {}
+    for line in yaml.splitlines():
+        m = re.match(r"^(\w+):\s*(.*)$", line)
+        if not m:
+            continue
+        key, value = m.group(1), m.group(2).strip()
+        if value.startswith("[") and value.endswith("]"):
+            inner = value[1:-1]
+            meta[key] = [
+                p.strip().strip("\"'") for p in inner.split(",") if p.strip()
+            ]
+        else:
+            meta[key] = value.strip("\"'")
+    return meta, body
+
+
+def plain_text(md: str) -> str:
+    text = re.sub(r"```[\s\S]*?```", " ", md)
+    text = re.sub(r"`[^`]+`", " ", text)
+    text = re.sub(r"!\[[^\]]*\]\([^)]+\)", " ", text)
+    text = re.sub(r"\[[^\]]*\]\([^)]+\)", " ", text)
+    text = re.sub(r"[#>*_\-|]", " ", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+_MATH_DISPLAY = re.compile(r"\\\[((?:.|\n)*?)\\\]")
+_MATH_INLINE = re.compile(r"\\\(((?:.|\n)*?)\\\)")
+_MATH_DOLLAR = re.compile(r"\$\$((?:.|\n)*?)\$\$")
+
+
+def _extract_math(body: str) -> tuple[str, list[tuple[str, str]]]:
+    slots: list[tuple[str, str]] = []
+
+    def park(kind: str, tex: str) -> str:
+        slots.append((kind, tex))
+        return f"@@MATH{len(slots) - 1}@@"
+
+    def park_display(m: re.Match) -> str:
+        return park("display", m.group(1))
+
+    def park_inline(m: re.Match) -> str:
+        return park("inline", m.group(1))
+
+    body = _MATH_DOLLAR.sub(park_display, body)
+    body = _MATH_DISPLAY.sub(park_display, body)
+    body = _MATH_INLINE.sub(park_inline, body)
+    return body, slots
+
+
+def _restore_math(html: str, slots: list[tuple[str, str]]) -> str:
+    for i, (kind, tex) in enumerate(slots):
+        token = f"@@MATH{i}@@"
+        if kind == "display":
+            repl = f"\\[{tex}\\]"
+        else:
+            repl = f"\\({tex}\\)"
+        html = html.replace(token, repl)
+        html = html.replace(f"<p>\\[{tex}\\]</p>", f"\\[{tex}\\]")
+        html = html.replace(f"<p>\\[{tex}\\]<br />\n</p>", f"\\[{tex}\\]")
+    return html
+
+
+def render_md(body: str) -> str:
+    ensure_markdown()
+    body, math_slots = _extract_math(body)
+    html = md_lib.markdown(body, extensions=["tables", "fenced_code", "nl2br"])
+    html = _restore_math(html, math_slots)
+    html = html.replace("../../src/assets/", "../assets/")
+    html = html.replace("../src/assets/", "../assets/")
+    return html
+
+
+def render_tags(tags: list[str]) -> str:
+    return "".join(f'<span class="tag">{escape_html(t)}</span>' for t in tags)
+
+
+def topic_card(topic: dict, href_prefix: str = "topics/") -> str:
+    if topic["cover"]:
+        cover = (
+            f'<div class="card-cover" style="background-image:url(\'{escape_html(topic["cover"])}\')"></div>'
+        )
+    else:
+        cover = '<div class="card-cover card-cover--fallback"></div>'
+    slug = sanitize_slug(topic["slug"])
+    return f"""
+    <a class="topic-card" href="{href_prefix}{escape_html(slug)}.html" data-title="{escape_html(topic['title'])}" data-tags="{escape_html(' '.join(topic['tags']))}" data-summary="{escape_html(topic['summary'])}">
+      {cover}
+      <div class="card-body">
+        <div class="card-meta">
+          <time datetime="{escape_html(topic['date'])}">{escape_html(topic['date'])}</time>
+          <div class="tags">{render_tags(topic['tags'])}</div>
+        </div>
+        <h3>{escape_html(topic['title'])}</h3>
+        <p>{escape_html(topic['summary'])}</p>
+      </div>
+    </a>"""
+
+
+def sanitize_slug(slug: str) -> str:
+    slug = slug.strip().replace(" ", "-")
+    slug = re.sub(r"[^\w\-.\u4e00-\u9fff]+", "-", slug)
+    slug = re.sub(r"-{2,}", "-", slug).strip("-")
+    return slug or "topic"
+
+
+# Ubuntu Server 技能提升路线图：总览 + 14 周专题（按学习顺序）
+# 尚未创建的 slug 会被自动跳过（悬窗只展示已上线专题），随专题逐篇上线自动补全。
+UBUNTU_ROADMAP_ORDER = [
+    "ubuntu-server-roadmap",       # 总览：路线图与学习地图
+    "ubuntu-install-bootstrap",    # 第 1 周：安装与系统初识
+    "ubuntu-cli-shell-mastery",    # 第 2 周：命令行与 Shell 精通
+    "ubuntu-users-permissions",    # 第 3 周：用户、组与权限
+    "ubuntu-filesystem-storage",   # 第 4 周：文件系统与存储管理
+    "ubuntu-apt-packaging",        # 第 5 周：软件包与 APT
+    "ubuntu-systemd-services",     # 第 6 周：进程与 systemd 服务管理
+    "ubuntu-networking",           # 第 7 周：网络配置
+    "ubuntu-ssh-remote-access",    # 第 8 周：SSH 与远程访问安全
+    "ubuntu-security-hardening",   # 第 9 周：防火墙与安全加固
+    "ubuntu-performance-monitoring", # 第 10 周：性能监控与调优
+    "ubuntu-logs-troubleshooting",   # 第 11 周：日志与故障排查
+    "ubuntu-containers-virtualization", # 第 12 周：容器与虚拟化
+    "ubuntu-automation-ansible",    # 第 13 周：自动化运维
+    "ubuntu-backup-recovery",       # 第 14 周：备份与灾难恢复
+]
+
+
+# 悬窗配置：key = 悬窗 id 后缀（用于 DOM id / CSS 定位），其余为展示与内容定义
+ROADMAP_FLOATS = [
+    {
+        "id": "ubuntu",
+        "title": "Ubuntu Server 学习路线图",
+        "aria": "Ubuntu Server 按周学习路线图",
+        "hint": "14 周专题，点击任一项开始本周学习",
+        "order": UBUNTU_ROADMAP_ORDER,
+        "variant": "ubuntu",
+    },
+]
+
+
+def roadmap_items(order: list[str], topics: list[dict]) -> str:
+    """生成悬窗里的专题导航项（按给定学习顺序）。
+
+    序号为"悬窗中实际可见的第几项"（连续编号，跳过未上线专题不留空号），
+    因此随专题逐篇上线自然增长；全部上线后与清单顺序完全一致。
+    """
+    by_slug = {t["slug"]: t for t in topics}
+    rows = []
+    n = 0
+    for slug in order:
+        topic = by_slug.get(slug)
+        if not topic:
+            continue
+        n += 1
+        title = topic["title"]
+        short = re.split(r"[:：]", title, maxsplit=1)[0].strip()
+        rows.append(
+            f'<a class="roadmap-item" href="topics/{escape_html(slug)}.html" '
+            f'data-title="{escape_html(title)}" title="{escape_html(title)}">'
+            f'<span class="roadmap-index">{n:02d}</span>'
+            f'<span class="roadmap-label">{escape_html(short)}</span>'
+            f"</a>"
+        )
+    return "\n".join(rows)
+
+
+def roadmap_float(topics: list[dict], href_prefix: str = "topics/", cfg: dict | None = None) -> str:
+    """生成单个飘动悬窗的 HTML。
+
+    href_prefix：首页用 "topics/"，专题页（位于 dist/topics/）用 "../topics/"。
+    """
+    cfg = cfg or ROADMAP_FLOATS[0]
+    slug_id = cfg["id"]
+    items = roadmap_items(cfg["order"], topics).replace(
+        'href="topics/', f'href="{href_prefix}'
+    )
+    count = sum(1 for s in cfg["order"] if any(t["slug"] == s for t in topics))
+    variant_cls = f' roadmap-float--{cfg["variant"]}' if cfg.get("variant") else ""
+    return f"""
+    <div class="roadmap-float{variant_cls}" id="roadmap-float-{slug_id}">
+      <button
+        type="button"
+        class="roadmap-toggle"
+        id="roadmap-toggle-{slug_id}"
+        aria-expanded="false"
+        aria-controls="roadmap-panel-{slug_id}"
+      >
+        <span class="roadmap-toggle-dot" aria-hidden="true"></span>
+        <span class="roadmap-toggle-text">{escape_html(cfg['title'])}</span>
+        <span class="roadmap-toggle-count">{count}</span>
+        <span class="roadmap-chevron" aria-hidden="true"></span>
+      </button>
+      <div class="roadmap-panel" id="roadmap-panel-{slug_id}" role="menu" aria-label="{escape_html(cfg['aria'])}">
+        <p class="roadmap-hint">{escape_html(cfg['hint'])}</p>
+        <div class="roadmap-list">
+          {items}
+        </div>
+      </div>
+    </div>"""
+
+
+def roadmap_floats(topics: list[dict], href_prefix: str = "topics/") -> str:
+    """生成全部飘动悬窗（多个悬窗纵向堆叠）。"""
+    return "\n".join(
+        roadmap_float(topics, href_prefix=href_prefix, cfg=cfg) for cfg in ROADMAP_FLOATS
+    )
+
+
+def load_topics() -> list[dict]:
+    if not CONTENT.exists():
+        return []
+    topics = []
+    for path in CONTENT.glob("*.md"):
+        raw = path.read_text(encoding="utf-8")
+        meta, body = parse_front_matter(raw)
+        slug = sanitize_slug(meta.get("slug") or path.stem)
+        tags = meta.get("tags") or []
+        if isinstance(tags, str):
+            tags = [tags]
+        text = plain_text(body)
+        summary = meta.get("summary") or text[:120]
+        topics.append(
+            {
+                "slug": slug,
+                "title": meta.get("title") or slug,
+                "date": meta.get("date") or "",
+                "tags": tags,
+                "summary": summary,
+                "cover": meta.get("cover") or "",
+                "body": body,
+                "html": render_md(body),
+                "text": text,
+            }
+        )
+    topics.sort(key=lambda t: t["date"], reverse=True)
+    return topics
+
+
+def copy_assets():
+    src_assets = SRC / "assets"
+    dest_assets = DIST / "assets"
+    if dest_assets.exists():
+        shutil.rmtree(dest_assets)
+    shutil.copytree(src_assets, dest_assets)
+
+
+def build() -> None:
+    DIST.mkdir(parents=True, exist_ok=True)
+    (DIST / "topics").mkdir(parents=True, exist_ok=True)
+    copy_assets()
+
+    topics = load_topics()
+    index_tpl = (SRC / "index.html").read_text(encoding="utf-8")
+    topic_tpl = (SRC / "topic.html").read_text(encoding="utf-8")
+
+    cards = "\n".join(topic_card(t) for t in topics) or (
+        '<p class="empty">暂无专题，在 <code>content/topics/</code> 添加 Markdown 即可。</p>'
+    )
+    index_html = index_tpl.replace("{{TOPIC_COUNT}}", str(len(topics))).replace(
+        "{{TOPIC_CARDS}}", cards
+    ).replace("{{ROADMAP_FLOAT}}", roadmap_floats(topics, href_prefix="topics/"))
+    (DIST / "index.html").write_text(index_html, encoding="utf-8")
+
+    for topic in topics:
+        related = [
+            t
+            for t in topics
+            if t["slug"] != topic["slug"]
+            and set(t["tags"]).intersection(topic["tags"])
+        ][:3]
+        related_html = ""
+        if related:
+            related_html = (
+                '<section class="related"><h2>相关专题</h2>'
+                f'<div class="related-grid">{"".join(topic_card(t, href_prefix="") for t in related)}</div>'
+                "</section>"
+            )
+
+        cover_block = (
+            f'<div class="topic-hero-media" style="background-image:url(\'{escape_html(topic["cover"])}\')"></div>'
+            if topic["cover"]
+            else '<div class="topic-hero-media topic-hero-media--fallback"></div>'
+        )
+
+        html = topic_tpl
+        replacements = {
+            "{{TITLE}}": escape_html(topic["title"]),
+            "{{DATE}}": escape_html(topic["date"]),
+            "{{TAGS}}": render_tags(topic["tags"]),
+            "{{SUMMARY}}": escape_html(topic["summary"]),
+            "{{COVER}}": escape_html(topic["cover"]),
+            "{{COVER_BLOCK}}": cover_block,
+            "{{CONTENT}}": topic["html"],
+            "{{RELATED}}": related_html,
+            "{{ROADMAP_FLOAT}}": roadmap_floats(topics, href_prefix="../topics/"),
+        }
+        for k, v in replacements.items():
+            html = html.replace(k, v)
+        (DIST / "topics" / f"{topic['slug']}.html").write_text(html, encoding="utf-8")
+
+    search_index = [
+        {
+            "slug": t["slug"],
+            "title": t["title"],
+            "date": t["date"],
+            "tags": t["tags"],
+            "summary": t["summary"],
+            "text": t["text"][:4000],
+            "url": f"topics/{t['slug']}.html",
+        }
+        for t in topics
+    ]
+    (DIST / "search-index.json").write_text(
+        json.dumps(search_index, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    print(f"Built {len(topics)} topics → dist/")
+
+
+if __name__ == "__main__":
+    build()
