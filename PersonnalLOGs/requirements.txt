@@ -1,0 +1,51 @@
+# ====================================================================
+# Ubuntu Server 第一周学习计划 - 依赖包清单
+# 主题: Nginx Web 服务器 + OpenSSH 安全加固
+# 适用: Ubuntu 22.04 / 24.04 Server
+# 用法: bash install.sh
+# ====================================================================
+
+# ---- 基础工具（装机必装，后面所有周都要用） ----
+curl            # 下载工具，几乎所有脚本都要用
+wget            # 下载工具（备用）
+vim             # 编辑器，改配置必备
+nano            # 编辑器（新手友好，备用）
+htop            # 进程/资源监控，比 top 直观
+tmux            # 终端复用，SSH 断开不杀进程
+tree            # 目录树可视化，理解文件结构
+bash-completion # Tab 补全，提升效率
+unzip           # 解压 zip
+git             # 版本控制，拉取配置/脚本
+
+# ---- 网络诊断工具（排查服务连通性必备） ----
+net-tools       # ifconfig / netstat（经典命令）
+iproute2        # ip 命令（现代替代，通常预装）
+dnsutils        # dig / nslookup，DNS 排查
+telnet          # 测试端口连通性 telnet IP 端口
+nmap            # 端口扫描，验证服务暴露面
+tcpdump         # 抓包，理解网络流量
+
+# ---- 防火墙与安全 ----
+ufw              # Uncomplicated Firewall，Ubuntu 默认防火墙
+fail2ban         # 暴力破解防护，自动封禁异常 IP
+openssh-server   # SSH 服务端（Server 版通常预装）
+openssh-client   # SSH 客户端
+
+# ---- Nginx 相关 ----
+nginx            # Web 服务器，本周主角
+openssl          # 生成自签证书、调试 TLS
+
+# ---- 系统审计（选学，理解安全日志） ----
+auditd           # Linux 审计框架，记录敏感操作
+logrotate        # 日志轮转，防止日志撑满磁盘
+
+# ====================================================================
+# 以下包不通过 apt 安装，列在此处作为参考：
+# --------------------------------------------------------------------
+# certbot           # Let's Encrypt 自动签发 HTTPS 证书
+#                    安装: sudo snap install --classic certbot
+#                    （需要公网域名时再装，本周用自签证书即可）
+#
+# node_exporter     # Prometheus 主机指标采集器（第5周监控用，提前了解）
+#                    安装: 见 https://prometheus.io/download/
+# ====================================================================

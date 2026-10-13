@@ -175,6 +175,7 @@ UBUNTU_ROADMAP_ORDER = [
     "ubuntu-containers-virtualization", # 第 12 周：容器与虚拟化
     "ubuntu-automation-ansible",    # 第 13 周：自动化运维
     "ubuntu-backup-recovery",       # 第 14 周：备份与灾难恢复
+    "ubuntu-cicd-docker-jenkins",  # 实战延伸：Docker + Jenkins 自动化测试 CI/CD
 ]
 
 
