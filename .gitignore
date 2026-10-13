@@ -4,4 +4,4 @@ dist/
 *.log
 .vscode/
 .workbuddy/
-__pycache__/
+__pycache__/PersonnalLOGs/
