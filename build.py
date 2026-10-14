@@ -177,6 +177,7 @@ UBUNTU_ROADMAP_ORDER = [
     "ubuntu-backup-recovery",       # 第 14 周：备份与灾难恢复
     "ubuntu-cicd-docker-jenkins",  # 实战延伸：Docker + Jenkins 自动化测试 CI/CD
     "ubuntu-pytest-roadmap",       # 实战延伸：pytest 2 周学习路线图
+    "ubuntu-zentao-setup",         # 实战延伸：禅道介绍 + Ubuntu 搭建 + 测试管理系统
 ]
 
 
