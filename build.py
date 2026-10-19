@@ -178,6 +178,7 @@ UBUNTU_ROADMAP_ORDER = [
     "ubuntu-cicd-docker-jenkins",  # 实战延伸：Docker + Jenkins 自动化测试 CI/CD
     "ubuntu-pytest-roadmap",       # 实战延伸：pytest 2 周学习路线图
     "ubuntu-zentao-setup",         # 实战延伸：禅道介绍 + Ubuntu 搭建 + 测试管理系统
+    "ubuntu-allinone-deploy",      # 实战总集成：Ubuntu 一键部署 Docker+Jenkins+禅道
 ]
 
 
